@@ -1,0 +1,73 @@
+---
+- name: Ensure apt package list is updated (apt-get update)
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Allow access to tcp port 5432
+  ufw:
+    rule: allow
+    port: 5432
+    proto: tcp
+
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+      - python3-psycopg2
+    state: present
+    update_cache: yes
+
+- name: Check if PostgreSQL is initialized
+  become: true
+  stat:
+    path: "{{ pg_conf_dir }}/pg_hba.conf"
+
+- name: Create the data dir if it is not default
+  become: true
+  file:
+    dest: "{{ pg_custom_data_dir }}"
+    owner: postgres
+    group: postgres
+    mode: "0700"
+    recurse: yes
+    state: directory
+  when: pg_custom_data_dir is defined
+
+- name: Change the data dir in postgresql.conf
+  become: true
+  lineinfile:
+    path: "{{ pg_conf_dir }}/postgresql.conf"
+    regexp: "^(.*)data_directory(.*)$"
+    line: "data_directory = '{{ pg_custom_data_dir }}/main'"
+    backrefs: yes
+  when: pg_custom_data_dir is defined
+
+- name: Copy default data dir into the new place
+  become: true
+  copy:
+    src: "{{ pg_data_dir }}"
+    dest: "{{ pg_custom_data_dir }}"
+    owner: postgres
+    group: postgres
+    remote_src: true
+  when: pg_custom_data_dir is defined
+
+- name: Start PostgreSQL
+  become: true
+  systemd:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: Set role based on hostname
+  set_fact:
+    postgresql_role: "{{ item.role }}"
+  with_items: "{{ pg_master_or_replica }}"
+  when: inventory_hostname == item.hostname
+
+- name: Include role-specific tasks
+  include_tasks: "{{ postgresql_role }}.yml"
+  when: postgresql_role in ['master', 'replica']

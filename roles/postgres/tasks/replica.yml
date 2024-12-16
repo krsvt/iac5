@@ -1,0 +1,64 @@
+- name: Configure replica server
+  become: true
+  blockinfile:
+    path: "{{ pg_conf_dir }}/postgresql.conf"
+    create: yes
+    block: |
+      listen_addresses = '*'
+      wal_level = hot_standby
+      max_wal_senders = 8
+      hot_standby = on
+      standby_mode = on
+  notify: Restart PostgreSQL
+
+- name: Install acl
+  become: true
+  apt:
+    name:
+      - acl
+    state: present
+    update_cache: true
+
+- name: PostgreSQL | Grant postgres
+  shell: "sudo usermod -a -G sudo postgres"
+
+- name: Add trust for master in pg_hba.conf
+  become: true
+  lineinfile:
+    state: present
+    dest: "{{ pg_conf_dir }}/pg_hba.conf"
+    regexp: "host.*replication.*{{ pg_master_address }}/32.*trust"
+    line: "host    replication    postgres    {{ pg_master_address }}/32 trust"
+  when: pg_master_address is defined
+
+- name: Stop PostgreSQL
+  become: true
+  service:
+    name: postgresql
+    state: stopped
+
+- name: Clear out data directory
+  become: true
+  file:
+    path: "{{ pg_custom_data_dir | default(pg_data_dir) }}"
+    state: absent
+
+- name: Create empty data directory
+  become: true
+  become_user: postgres
+  file:
+    path: "{{ pg_data_dir}}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Initialize the replica database
+  become: true
+  become_user: postgres
+  shell: "pg_basebackup -D {{ pg_custom_data_dir | default(pg_data_dir) }} -h {{ pg_master_address }} -X stream -c fast -U {{ pg_replica_user }} -w -R"
+  notify: Restart PostgreSQL
+# - name: Recursively change ownership
+#   become: true
+#   shell: "chown -R postgres {{  pg_custom_data_dir | default(pg_data_dir) }} "
+#   notify: Restart PostgreSQL

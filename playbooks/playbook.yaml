@@ -1,0 +1,6 @@
+---
+- name: PostgreSQL
+  hosts: db
+  become: true
+  roles:
+    - postgres

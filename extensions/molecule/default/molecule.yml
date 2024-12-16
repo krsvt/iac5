@@ -1,0 +1,28 @@
+---
+driver:
+  name: vagrant
+  provider:
+    name: virtualbox
+
+dependency:
+  name: galaxy
+
+platforms:
+  - name: srv1
+    box: ubuntu/focal64
+
+provisioner:
+  name: ansible
+  inventory:
+    hosts:
+      all:
+        hosts:
+          srv1:
+            ansible_host: "192.168.56.201"
+            ansible_user: "vagrant"
+            ansible_ssh_private_key_file: "/home/svt/dev/itmo/infra/iac/lab4/.vagrant/machines/srv1/virtualbox/private_key"
+  env:
+    ANSIBLE_ROLES_PATH: "../../../roles"
+
+verifier:
+  name: ansible

@@ -1,0 +1,90 @@
+---
+- name: Install acl
+  become: true
+  apt:
+    name:
+      - acl
+    state: present
+    update_cache: true
+
+- name: Grant postgres
+  shell: "sudo usermod -a -G sudo postgres"
+
+- name: Configure master server
+  become: true
+  become_user: postgres
+  blockinfile:
+    path: "{{ pg_conf_dir }}/postgresql.conf"
+    create: yes
+    block: |
+      listen_addresses = '*'
+      wal_level = replica
+      max_wal_senders = 8
+  notify: Restart PostgreSQL
+
+- name: Create replication user account
+  community.postgresql.postgresql_user:
+    name: "{{ pg_replica_user }}"
+    password: "{{ pg_replica_password }}"
+    role_attr_flags: replication
+  become_user: postgres
+
+- name: Add trust in pg_hba.conf
+  become: true
+  become_user: postgres
+  lineinfile:
+    state: present
+    dest: "{{ pg_conf_dir }}/pg_hba.conf"
+    regexp: "host.*replication.*{{ item }}/32.*trust"
+    line: "host    replication    {{ pg_replica_user }}  {{ item }}/32 trust"
+  loop: "{{ pg_replica_address }}"
+  when: pg_replica_address is defined
+  notify: Restart PostgreSQL
+
+- name: Create postgresql databases
+  community.postgresql.postgresql_db:
+    state: present
+    name: "{{ item }}"
+  become: true
+  become_user: postgres
+  with_items:
+    - "{{ pg_database_list }}"
+  when: pg_database_list is defined
+
+- name: Create database users
+  community.postgresql.postgresql_user:
+    state: present
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+  become: true
+  become_user: postgres
+  with_items:
+    - "{{ pg_user_list }}"
+  when: pg_user_list is defined
+
+- name: Grant db users access to app db
+  community.postgresql.postgresql_privs:
+    type: database
+    database: "{{ item.db }}"
+    roles: "{{ item.user }}"
+    grant_option: no
+    privs: all
+  become: true
+  become_user: postgres
+  with_items:
+    - "{{ pg_user_database_list }}"
+  when: pg_user_database_list is defined
+
+- name: Allow md5 connection for the db user
+  postgresql_pg_hba:
+    dest: "{{ pg_conf_dir }}/pg_hba.conf"
+    contype: host
+    databases: all
+    method: md5
+    users: "{{ item.name }}"
+    create: true
+  become: true
+  become_user: postgres
+  notify: Restart PostgreSQL
+  with_items:
+    - "{{ pg_user_list }}"

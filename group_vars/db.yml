@@ -1,0 +1,5 @@
+pg_master_or_replica:
+  - hostname: srv1
+    role: master
+  - hostname: srv2
+    role: replica

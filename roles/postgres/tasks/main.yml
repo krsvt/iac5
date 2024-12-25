@@ -17,13 +17,9 @@
       - postgresql-contrib
       - libpq-dev
       - python3-psycopg2
+      - acl
     state: present
     update_cache: yes
-
-- name: Check if PostgreSQL is initialized
-  become: true
-  stat:
-    path: "{{ pg_conf_dir }}/pg_hba.conf"
 
 - name: Create the data dir if it is not default
   become: true
@@ -32,7 +28,6 @@
     owner: postgres
     group: postgres
     mode: "0700"
-    recurse: yes
     state: directory
   when: pg_custom_data_dir is defined
 
@@ -41,11 +36,12 @@
   lineinfile:
     path: "{{ pg_conf_dir }}/postgresql.conf"
     regexp: "^(.*)data_directory(.*)$"
-    line: "data_directory = '{{ pg_custom_data_dir }}/main'"
+    line: "data_directory = '{{ pg_custom_data_dir }}'"
     backrefs: yes
   when: pg_custom_data_dir is defined
+  notify: Restart PostgreSQL
 
-- name: Copy default data dir into the new place
+- name: Copy pgdata dir
   become: true
   copy:
     src: "{{ pg_data_dir }}"
@@ -53,14 +49,19 @@
     owner: postgres
     group: postgres
     remote_src: true
-  when: pg_custom_data_dir is defined
+    force: false
+  when: pg_data_dir is defined
+  notify: Restart PostgreSQL
 
-- name: Start PostgreSQL
+- name: Set ownership of the custom data directory
   become: true
-  systemd:
-    name: postgresql
-    state: started
-    enabled: yes
+  file:
+    path: "{{ pg_custom_data_dir }}"
+    owner: postgres
+    group: postgres
+    recurse: yes
+  when: pg_custom_data_dir is defined
+  notify: Restart PostgreSQL
 
 - name: Set role based on hostname
   set_fact:

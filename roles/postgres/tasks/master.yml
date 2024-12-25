@@ -1,14 +1,16 @@
 ---
-- name: Install acl
-  become: true
-  apt:
-    name:
-      - acl
-    state: present
-    update_cache: true
+- name: Ensure replication user exists
+  become_user: postgres
+  shell: >
+    psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '{{ pg_replica_user }}';"
+  register: replication_user_check
+  changed_when: false
 
-- name: Grant postgres
-  shell: "sudo usermod -a -G sudo postgres"
+- name: Update or create replication user
+  become_user: postgres
+  shell: >
+    psql -c "CREATE OR REPLACE ROLE {{ pg_replica_user }} WITH REPLICATION ENCRYPTED PASSWORD '{{ pg_replica_password }}';"
+  when: replication_user_check.stdout != '1'
 
 - name: Configure master server
   become: true
@@ -17,17 +19,13 @@
     path: "{{ pg_conf_dir }}/postgresql.conf"
     create: yes
     block: |
-      listen_addresses = '*'
+      archive_mode = on
+      archive_command = 'test ! -f /home/postgres/archivedir/%f && cp %p /home/postgres/archivedir/%f'
       wal_level = replica
-      max_wal_senders = 8
+      max_wal_senders = 3
+      listen_addresses = '*'
+      wal_keep_size = 1GB
   notify: Restart PostgreSQL
-
-- name: Create replication user account
-  community.postgresql.postgresql_user:
-    name: "{{ pg_replica_user }}"
-    password: "{{ pg_replica_password }}"
-    role_attr_flags: replication
-  become_user: postgres
 
 - name: Add trust in pg_hba.conf
   become: true
@@ -50,6 +48,7 @@
   with_items:
     - "{{ pg_database_list }}"
   when: pg_database_list is defined
+  notify: Restart PostgreSQL
 
 - name: Create database users
   community.postgresql.postgresql_user:
@@ -61,6 +60,7 @@
   with_items:
     - "{{ pg_user_list }}"
   when: pg_user_list is defined
+  notify: Restart PostgreSQL
 
 - name: Grant db users access to app db
   community.postgresql.postgresql_privs:
@@ -74,6 +74,7 @@
   with_items:
     - "{{ pg_user_database_list }}"
   when: pg_user_database_list is defined
+  notify: Restart PostgreSQL
 
 - name: Allow md5 connection for the db user
   postgresql_pg_hba:
@@ -85,6 +86,6 @@
     create: true
   become: true
   become_user: postgres
-  notify: Restart PostgreSQL
   with_items:
     - "{{ pg_user_list }}"
+  notify: Restart PostgreSQL

@@ -1,5 +1,5 @@
 ---
-pg_data_dir: /var/lib/postgresql/14/main
+pg_data_dir: /var/lib/postgresql/14/main/
 pg_conf_dir: /etc/postgresql/14/main
 pg_custom_data_dir: /home/postgres/mypg
 pg_database_list:
@@ -19,4 +19,4 @@ pg_replica_group_name: db_replica
 pg_replica_address:
   - "192.168.56.202"
 pg_replica_user: replica
-pg_replica_password: root
+pg_replica_password: replicator

@@ -5,8 +5,7 @@ Role that installs PostgreSQL.
 
 Role Variables
 --------------
-postgresql_version: 16
-postgresql_data_directory: "/var/lib/postgresql/{{ postgresql_version }}/main"
+See defaults/main.yml file.
 
 Example Playbook
 ----------------

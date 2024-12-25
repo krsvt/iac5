@@ -2,8 +2,9 @@
 - name: Converge
   hosts: all
   gather_facts: false
+  become: true
   tasks:
-    - name: "Include openvpn role"
+    - name: "Include postgres role"
       ansible.builtin.include_role:
-        name: "openvpn"
+        name: "postgres"
         tasks_from: main.yml

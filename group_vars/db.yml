@@ -3,3 +3,24 @@ pg_master_or_replica:
     role: master
   - hostname: srv2
     role: replica
+pg_data_dir: /var/lib/postgresql/14/main/
+pg_conf_dir: /etc/postgresql/14/main
+pg_custom_data_dir: /home/postgres/mypg
+pg_database_list:
+  - test_db1
+  - test_db2
+pg_user_list:
+  - { name: user1, password: user1user1 }
+  - { name: user2, password: user2user2 }
+pg_user_database_list:
+  - { db: test_db1, user: user1 }
+  - { db: test_db2, user: user2 }
+
+pg_master_group_name: db_master
+pg_master_address: "192.168.56.201"
+
+pg_replica_group_name: db_replica
+pg_replica_address:
+  - "192.168.56.202"
+pg_replica_user: replica
+pg_replica_password: replicator

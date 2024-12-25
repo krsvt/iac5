@@ -1,47 +1,16 @@
-- name: Configure replica server
+---
+- name: Check if data directory exists
   become: true
-  blockinfile:
-    path: "{{ pg_conf_dir }}/postgresql.conf"
-    create: yes
-    block: |
-      listen_addresses = '*'
-      wal_level = hot_standby
-      max_wal_senders = 8
-      hot_standby = on
-      standby_mode = on
-  notify: Restart PostgreSQL
-
-- name: Install acl
-  become: true
-  apt:
-    name:
-      - acl
-    state: present
-    update_cache: true
-
-- name: PostgreSQL | Grant postgres
-  shell: "sudo usermod -a -G sudo postgres"
-
-- name: Add trust for master in pg_hba.conf
-  become: true
-  lineinfile:
-    state: present
-    dest: "{{ pg_conf_dir }}/pg_hba.conf"
-    regexp: "host.*replication.*{{ pg_master_address }}/32.*trust"
-    line: "host    replication    postgres    {{ pg_master_address }}/32 trust"
-  when: pg_master_address is defined
-
-- name: Stop PostgreSQL
-  become: true
-  service:
-    name: postgresql
-    state: stopped
+  stat:
+    path: "{{ pg_custom_data_dir | default(pg_data_dir) }}"
+  register: data_dir_status
 
 - name: Clear out data directory
   become: true
   file:
     path: "{{ pg_custom_data_dir | default(pg_data_dir) }}"
     state: absent
+  when: data_dir_status.stat.exists
 
 - name: Create empty data directory
   become: true
@@ -52,13 +21,41 @@
     owner: postgres
     group: postgres
     mode: "0700"
+  when: not data_dir_status.stat.exists
+
+- name: Check if the replica database is already initialized
+  become: true
+  stat:
+    path: "{{ pg_custom_data_dir | default(pg_data_dir) }}/PG_VERSION"
+  register: replica_status
 
 - name: Initialize the replica database
   become: true
   become_user: postgres
-  shell: "pg_basebackup -D {{ pg_custom_data_dir | default(pg_data_dir) }} -h {{ pg_master_address }} -X stream -c fast -U {{ pg_replica_user }} -w -R"
+  shell: >
+    pg_basebackup -D {{ pg_custom_data_dir | default(pg_data_dir) }}
+    -h {{ pg_master_address }} -Xs -U {{ pg_replica_user }} -R -P
+  when: not replica_status.stat.exists | bool
+
+- name: Configure replica server
+  become: true
+  blockinfile:
+    path: "{{ pg_conf_dir }}/postgresql.conf"
+    create: yes
+    block: |
+      listen_addresses = '*'
+      archive_mode = on
+      wal_level = replica
+      max_wal_senders = 8
+      hot_standby = on
+      primary_conninfo = 'host={{ pg_master_address }} port=5432 user={{ pg_replica_user }}'
+
+- name: Add trust for master in pg_hba.conf
+  become: true
+  lineinfile:
+    state: present
+    dest: "{{ pg_conf_dir }}/pg_hba.conf"
+    regexp: "host.*replication.*{{ pg_master_address }}/32.*trust"
+    line: "host    replication    postgres    {{ pg_master_address }}/32 trust"
+  when: pg_master_address is defined
   notify: Restart PostgreSQL
-# - name: Recursively change ownership
-#   become: true
-#   shell: "chown -R postgres {{  pg_custom_data_dir | default(pg_data_dir) }} "
-#   notify: Restart PostgreSQL

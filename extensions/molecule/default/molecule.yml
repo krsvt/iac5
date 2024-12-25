@@ -10,6 +10,21 @@ dependency:
 platforms:
   - name: srv1
     box: ubuntu/focal64
+    groups:
+      - db
+    vars:
+      pg_master_or_replica:
+        - hostname: srv1
+          role: master
+
+  - name: srv2
+    box: ubuntu/focal64
+    groups:
+      - db
+    vars:
+      pg_master_or_replica:
+        - hostname: srv2
+          role: replica
 
 provisioner:
   name: ansible
@@ -20,7 +35,17 @@ provisioner:
           srv1:
             ansible_host: "192.168.56.201"
             ansible_user: "vagrant"
-            ansible_ssh_private_key_file: "/home/svt/dev/itmo/infra/iac/lab4/.vagrant/machines/srv1/virtualbox/private_key"
+            pg_master_or_replica:
+              - hostname: srv1
+                role: master
+            ansible_ssh_private_key_file: "/home/svt/dev/itmo/iac/iac5/.vagrant/machines/srv1/virtualbox/private_key"
+          srv2:
+            ansible_host: "192.168.56.202"
+            ansible_user: "vagrant"
+            pg_master_or_replica:
+              - hostname: srv2
+                role: replica
+            ansible_ssh_private_key_file: "/home/svt/dev/itmo/iac/iac5/.vagrant/machines/srv2/virtualbox/private_key"
   env:
     ANSIBLE_ROLES_PATH: "../../../roles"
 

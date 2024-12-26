@@ -49,7 +49,7 @@
     owner: postgres
     group: postgres
     remote_src: true
-    force: false
+    # force: false
   when: pg_data_dir is defined
   notify: Restart PostgreSQL
 

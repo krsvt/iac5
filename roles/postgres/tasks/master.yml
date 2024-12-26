@@ -9,7 +9,7 @@
 - name: Update or create replication user
   become_user: postgres
   shell: >
-    psql -c "CREATE OR REPLACE ROLE {{ pg_replica_user }} WITH REPLICATION ENCRYPTED PASSWORD '{{ pg_replica_password }}';"
+    psql -c "CREATE ROLE {{ pg_replica_user }} WITH LOGIN REPLICATION ENCRYPTED PASSWORD '{{ pg_replica_password }}';"
   when: replication_user_check.stdout != '1'
 
 - name: Configure master server
@@ -89,3 +89,9 @@
   with_items:
     - "{{ pg_user_list }}"
   notify: Restart PostgreSQL
+
+- name: Restart PostgreSQL
+  become: true
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted

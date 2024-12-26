@@ -4,4 +4,4 @@
   ansible.builtin.service:
     name: postgresql
     state: restarted
-  when: ansible_facts.services['postgresql'].state != 'restarted'
+  # when: ansible_facts.services['postgresql'].state != 'restarted'
